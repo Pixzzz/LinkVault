@@ -5,7 +5,7 @@ const BookMarkSchema = new Schema({
   Title: { type: String, required: true },
   Description: { type: String, required: true },
   URL: { type: String, required: true },
-  UserID: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  UserID: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   CreatedAt: { type: Date, default: Date.now },
   tags: {
     type: [String],
@@ -19,4 +19,4 @@ const BookMarkSchema = new Schema({
   },
 });
 
-model.exports = mongoose.model("BookMark", BookMarkSchema);
+module.exports = mongoose.model("BookMark", BookMarkSchema);
