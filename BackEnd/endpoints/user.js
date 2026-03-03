@@ -3,12 +3,22 @@ const router = express.Router();
 const User = require("../models/User.js");
 const mongoose = require("mongoose");
 const bycrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const auth = require("../middleware/auth.js");
+const validation = require("../middleware/validation.js");
 
-// Create a new user
-router.get("/user", async (req, res) => {
+// GET: Fetch all users
+router.get("/user", auth, async (req, res) => {
   try {
-    const users = await User.find();
-    return res.status(200).json(users);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const users = await User.find().select("-password").skip(skip).limit(limit);
+    const total = await User.countDocuments();
+    return res
+      .status(200)
+      .json({ data: users, pagination: { total, page, limit } });
   } catch (error) {
     return res
       .status(500)
@@ -16,54 +26,90 @@ router.get("/user", async (req, res) => {
   }
 });
 
-// Login user 
-router.post('/login', async (req, res) => {
-  try{
-    const {email, password} = req.body;
+// POST: Login user
+router.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({
+        message: "Email and password must be provided",
+      });
+    }
+    const user = await User.findOne({ email: email });
+    if (!user) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+    const isPasswordValid = await bycrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+    const token = jwt.sign(
+      {
+        id: user._id,
+        email: user.email,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" },
+    );
+    return res
+      .status(200)
+      .json({ message: "Login successful", email: user.email, token: token });
   } catch (error) {
-
+    return res
+      .status(500)
+      .json({ message: `Error logging in: ${error.message}` });
   }
-})
+});
 
-// Create a new user
-router.post("/user", async (req, res) => {
+// POST: Create a new user
+router.post("/user", auth, validation, async (req, res) => {
   try {
     const { username, email, password } = req.body;
-
-    if (!username || !email || !password) {
+    if (!username?.trim() || !email?.trim() || !password?.trim()) {
       return res
         .status(400)
-        .json({ message: "Username, email and password must be provided" });
+        .json({ message: "username, email and password must be provided" });
     }
+    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedUsername = username.trim();
 
     const createdUser = await User.findOne({
-      $or: [{ email: email }, { username: username }],
+      $or: [{ email: normalizedEmail }, { username: normalizedUsername }],
     });
+    
     if (createdUser) {
-      return res.status(400).json({
+      return res.status(409).json({
         message: "A user with the same email or username already exists",
       });
     }
     const hashedPassword = await bycrypt.hash(password, 10);
 
     const newUser = await User.create({
-      username,
-      email,
+      username: normalizedUsername,
+      email: normalizedEmail,
       password: hashedPassword,
     });
 
+    const userResponse = newUser.toObject();
+    delete userResponse.password;
     return res
       .status(201)
-      .json({ message: "User created successfully", data: newUser });
+      .json({ message: "User created successfully", data: userResponse });
   } catch (error) {
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyValue)[0];
+      return res
+        .status(409)
+        .json({ message: `A user with the same ${field} already exists` });
+    }
     return res
       .status(500)
       .json({ message: `Error creating user: ${error.message}` });
   }
 });
 
-// edit user details
-router.put("/user/:userId", async (req, res) => {
+// PUT: Edit user details
+router.put("/user/:userId", auth, async (req, res) => {
   try {
     const { userId } = req.params;
     const { username, email, password } = req.body;
@@ -76,12 +122,34 @@ router.put("/user/:userId", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (username) updatedUser.username = username;
-    if (email) updatedUser.email = email;
-    if (password) updatedUser.password = password;
+    if (email && email !== updatedUser.email) {
+      const isEmailExists = await User.findOne({ email: email });
+      if (isEmailExists) {
+        return res
+          .status(400)
+          .json({ message: "A user with the same email already exists" });
+      }
+      updatedUser.email = email;
+    }
+    if (username && username !== updatedUser.username) {
+      const isUsernameExists = await User.findOne({ username: username });
+      if (isUsernameExists) {
+        return res
+          .status(400)
+          .json({ message: "A user with the same username already exists" });
+      }
+      updatedUser.username = username;
+    }
+    if (password) {
+      updatedUser.password = await bycrypt.hash(password, 10);
+    }
 
     await updatedUser.save();
-    return res.status(200).json({ message: "User updated successfully" });
+    const userResponse = updatedUser.toObject();
+    delete userResponse.password;
+    return res
+      .status(200)
+      .json({ message: "User updated successfully", data: userResponse });
   } catch (error) {
     return res
       .status(500)
@@ -89,8 +157,8 @@ router.put("/user/:userId", async (req, res) => {
   }
 });
 
-// delete user
-router.delete("/user/:userId", async (req, res) => {
+// DELETE: Delete a user
+router.delete("/user/:userId", auth, async (req, res) => {
   try {
     const { userId } = req.params;
 
