@@ -156,7 +156,7 @@ router.put("/user/:userId", auth, async (req, res) => {
       }
       updatedUser.role = role;
     }
-
+    
     await updatedUser.save();
     const userResponse = updatedUser.toObject();
     delete userResponse.password;
