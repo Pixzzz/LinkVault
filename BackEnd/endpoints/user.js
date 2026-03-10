@@ -6,9 +6,10 @@ const bycrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const auth = require("../middleware/auth.js");
 const validation = require("../middleware/validation.js");
+const isAdmin = require("../middleware/isAdmin.js");
 
 // GET: Fetch all users
-router.get("/user", auth, async (req, res) => {
+router.get("/user", auth, isAdmin, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -35,7 +36,7 @@ router.post("/login", async (req, res) => {
         message: "Email and password must be provided",
       });
     }
-    const user = await User.findOne({ email: email });
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (!user) {
       return res.status(401).json({ message: "Invalid email or password" });
     }
@@ -70,14 +71,15 @@ router.post("/user", auth, validation, async (req, res) => {
         .status(400)
         .json({ message: "username, email and password must be provided" });
     }
-    const normalizedEmail = email.toLowerCase().trim();
-    const normalizedUsername = username.trim();
 
-    const createdUser = await User.findOne({
-      $or: [{ email: normalizedEmail }, { username: normalizedUsername }],
+    const existingUser = await User.findOne({
+      $or: [
+        { email: email.toLowerCase().trim() },
+        { username: username.trim() },
+      ],
     });
-    
-    if (createdUser) {
+
+    if (existingUser) {
       return res.status(409).json({
         message: "A user with the same email or username already exists",
       });
@@ -85,8 +87,8 @@ router.post("/user", auth, validation, async (req, res) => {
     const hashedPassword = await bycrypt.hash(password, 10);
 
     const newUser = await User.create({
-      username: normalizedUsername,
-      email: normalizedEmail,
+      username: username.trim(),
+      email: email.toLowerCase().trim(),
       password: hashedPassword,
     });
 
@@ -112,7 +114,7 @@ router.post("/user", auth, validation, async (req, res) => {
 router.put("/user/:userId", auth, async (req, res) => {
   try {
     const { userId } = req.params;
-    const { username, email, password } = req.body;
+    const { username, email, password, role } = req.body;
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ message: "Invalid user ID" });
     }
@@ -123,25 +125,36 @@ router.put("/user/:userId", auth, async (req, res) => {
     }
 
     if (email && email !== updatedUser.email) {
-      const isEmailExists = await User.findOne({ email: email });
+      const isEmailExists = await User.findOne({
+        email: email.toLowerCase().trim(),
+      });
       if (isEmailExists) {
         return res
-          .status(400)
+          .status(409)
           .json({ message: "A user with the same email already exists" });
       }
-      updatedUser.email = email;
+      updatedUser.email = email.toLowerCase().trim();
     }
     if (username && username !== updatedUser.username) {
-      const isUsernameExists = await User.findOne({ username: username });
+      const isUsernameExists = await User.findOne({
+        username: username.trim(),
+      });
       if (isUsernameExists) {
         return res
           .status(400)
           .json({ message: "A user with the same username already exists" });
       }
-      updatedUser.username = username;
+      updatedUser.username = username.trim();
     }
     if (password) {
       updatedUser.password = await bycrypt.hash(password, 10);
+    }
+
+    if (role) {
+      if (!["user", "admin"].includes(role)) {
+        return res.status(401).json({message: 'Role must be "user" or "admin" '})
+      }
+      updatedUser.role = role;
     }
 
     await updatedUser.save();
