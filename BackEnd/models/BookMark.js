@@ -2,11 +2,11 @@ const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
 const BookMarkSchema = new Schema({
-  Title: { type: String, required: true },
-  Description: { type: String, required: true },
-  URL: { type: String, required: true },
-  UserID: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-  CreatedAt: { type: Date, default: Date.now },
+  title: { type: String, required: true },
+  description: { type: String, required: true },
+  url: { type: String, required: true },
+  userID: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  createdAt: { type: Date, default: Date.now },
   tags: {
     type: [String],
     default: [],

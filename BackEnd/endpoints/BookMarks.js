@@ -5,27 +5,24 @@ const { default: mongoose } = require("mongoose");
 const auth = require("../middleware/auth.js");
 
 // Get all bookmarks for a user
-router.get("/user/:userId", async (req, res) => {
+router.get("/user/:userID", auth, async (req, res) => {
   try {
-    const { userId } = req.params;
+    const { userID } = req.params;
 
-    if (
-      !mongoose.Types.ObjectId.isValid({
-        userId: new mongoose.Types.ObjectId(userId),
-      })
-    ) {
+    if (!mongoose.Types.ObjectId.isValid(userID)) {
       return res.status(400).json({ message: "Invalid user ID" });
     }
 
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
 
-    const bookMarks = await BookMarks.find({ userId })
+    const bookMarks = await BookMarks.find({ userID })
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit);
 
-    res.json(bookMarks);
+    const total = await BookMarks.countDocuments({ userID });
+    res.json({ data: bookMarks, pagination: { page, limit, total } });
   } catch (error) {
     res
       .status(500)
@@ -34,11 +31,11 @@ router.get("/user/:userId", async (req, res) => {
 });
 
 // Add a new bookmark
-router.post("/postBookMarks", auth, async (req, res) => {
+router.post("/", auth, async (req, res) => {
   try {
-    const { Title, Description, URL, tags } = req.body;
+    const { title, description, url, tags } = req.body;
 
-    if (!Title || !Description || !URL) {
+    if (!title || !description || !url) {
       return res.status(400).json({
         message: "You must prove Title, Description and URL to add a bookmark",
       });
@@ -53,9 +50,10 @@ router.post("/postBookMarks", auth, async (req, res) => {
     }
 
     const NewBookMark = await BookMarks.create({
-      Title,
-      Description,
-      URL,
+      userID: req.user.id,
+      title,
+      description,
+      url,
       tags: tags || [],
     });
     return res
@@ -69,7 +67,7 @@ router.post("/postBookMarks", auth, async (req, res) => {
 });
 
 // update a bookmark
-router.patch("/updateBookMarks/:id", async (req, res) => {
+router.patch("/:id", auth, async (req, res) => {
   try {
     const { id } = req.params;
     // Validate the bookmark ID
@@ -84,8 +82,11 @@ router.patch("/updateBookMarks/:id", async (req, res) => {
         updates[fields] = req.body[fields];
       }
     });
-    if (!updates.tags !== !Array.isArray(updates.tags)) {
+    if (!updates.tags && !Array.isArray(updates.tags)) {
       return res.status(400).json({ message: "Tags must be an array" });
+    }
+    if (update.tags && updates.tags > 7) {
+      return res.status(400).json({ message: "Max tags must be 7" });
     }
     const updatedBookMark = await BookMarks.findByIdAndUpdate(
       id,
@@ -107,7 +108,7 @@ router.patch("/updateBookMarks/:id", async (req, res) => {
 });
 
 // delete a bookmark
-router.delete("/deleteBookMarks/:id", async (req, res) => {
+router.delete("/:id", auth, async (req, res) => {
   try {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
