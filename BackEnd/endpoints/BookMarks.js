@@ -4,7 +4,76 @@ const BookMarks = require("../models/BookMark.js");
 const { default: mongoose } = require("mongoose");
 const auth = require("../middleware/auth.js");
 
-// Get all bookmarks for a user
+/**
+ * @swagger
+ * /bookmarks/user/{userID}:
+ *   get:
+ *     summary: Obtener bookmarks de un usuario
+ *     description: Devuelve lista paginada de bookmarks de un usuario específico
+ *     tags:
+ *       - Bookmarks
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: userID
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID del usuario
+ *       - name: page
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - name: limit
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Lista de bookmarks del usuario
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                       title:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ *                       url:
+ *                         type: string
+ *                       tags:
+ *                         type: array
+ *                       userID:
+ *                         type: string
+ *                       createdAt:
+ *                         type: string
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ *       400:
+ *         description: ID de usuario inválido
+ *       401:
+ *         description: No autorizado
+ */
 router.get("/user/:userID", auth, async (req, res) => {
   try {
     const { userID } = req.params;
@@ -30,7 +99,58 @@ router.get("/user/:userID", auth, async (req, res) => {
   }
 });
 
-// Add a new bookmark
+/**
+ * @swagger
+ * /bookmarks:
+ *   post:
+ *     summary: Crear nuevo bookmark
+ *     description: Crea un nuevo bookmark para el usuario autenticado
+ *     tags:
+ *       - Bookmarks
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - title
+ *               - description
+ *               - url
+ *             properties:
+ *               title:
+ *                 type: string
+ *                 example: "Google"
+ *               description:
+ *                 type: string
+ *                 example: "Buscador principal"
+ *               url:
+ *                 type: string
+ *                 example: "https://google.com"
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["search", "tools"]
+ *     responses:
+ *       201:
+ *         description: Bookmark creado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *       400:
+ *         description: Datos inválidos o tags incorrectos
+ *       401:
+ *         description: No autorizado
+ */
 router.post("/", auth, async (req, res) => {
   try {
     const { title, description, url, tags } = req.body;
@@ -66,7 +186,59 @@ router.post("/", auth, async (req, res) => {
   }
 });
 
-// update a bookmark
+/**
+ * @swagger
+ * /bookmarks/{id}:
+ *   patch:
+ *     summary: Actualizar bookmark
+ *     description: Actualiza un bookmark existente
+ *     tags:
+ *       - Bookmarks
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID del bookmark
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               url:
+ *                 type: string
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Bookmark actualizado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *       400:
+ *         description: ID inválido o datos incorrectos
+ *       404:
+ *         description: Bookmark no encontrado
+ *       401:
+ *         description: No autorizado
+ */
 router.patch("/:id", auth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -82,10 +254,12 @@ router.patch("/:id", auth, async (req, res) => {
         updates[fields] = req.body[fields];
       }
     });
-    if (!updates.tags && !Array.isArray(updates.tags)) {
-      return res.status(400).json({ message: "Tags must be an array" });
+    if (updates.tags) {
+      if (!Array.isArray(updates.tags)) {
+        return res.status(400).json({ message: "Tags must be an array" });
+      }
     }
-    if (update.tags && updates.tags > 7) {
+    if (updates.tags.length > 7) {
       return res.status(400).json({ message: "Max tags must be 7" });
     }
     const updatedBookMark = await BookMarks.findByIdAndUpdate(
@@ -107,7 +281,42 @@ router.patch("/:id", auth, async (req, res) => {
   }
 });
 
-// delete a bookmark
+/**
+ * @swagger
+ * /bookmarks/{id}:
+ *   delete:
+ *     summary: Eliminar bookmark
+ *     description: Elimina un bookmark existente
+ *     tags:
+ *       - Bookmarks
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID del bookmark
+ *     responses:
+ *       200:
+ *         description: Bookmark eliminado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *       400:
+ *         description: ID inválido
+ *       404:
+ *         description: Bookmark no encontrado
+ *       401:
+ *         description: No autorizado
+ */
 router.delete("/:id", auth, async (req, res) => {
   try {
     const { id } = req.params;
