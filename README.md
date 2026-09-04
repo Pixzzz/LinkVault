@@ -4,7 +4,7 @@ REST API for securely organizing personal bookmarks.
 
 ## Stack
 
-- Node.js and Express
+- TypeScript, Node.js and Express
 - MongoDB with Mongoose
 - JWT authentication
 - Joi request validation
@@ -25,23 +25,28 @@ BackEnd/
 │   ├── services/     # Business logic and data access
 │   ├── utils/        # Shared helpers
 │   ├── validators/   # Joi schemas
-│   ├── app.js        # Express application
-│   └── server.js     # Database connection and HTTP server
+│   ├── types/        # Shared HTTP and Express type declarations
+│   ├── app.ts        # Express application
+│   └── server.ts     # Database connection and HTTP server
 └── test/             # Unit tests
 ```
 
+The complete migration record is available in [`docs/TYPESCRIPT_MIGRATION.md`](docs/TYPESCRIPT_MIGRATION.md).
+
 ## Local setup
 
-1. Enter the backend directory and install dependencies:
+1. Use Node.js 24 (the required version is also declared in `BackEnd/.nvmrc`).
+
+2. Enter the backend directory and install dependencies:
 
    ```bash
    cd BackEnd
    npm ci
    ```
 
-2. Copy `.env.example` to `.env` and set the required values.
+3. Copy `.env.example` to `.env` and set the required values.
 
-3. Start the API:
+4. Start the API:
 
    ```bash
    npm run dev
@@ -61,10 +66,12 @@ This renames `userID` to `owner` only on documents that have not already been mi
 
 ## Commands
 
-- `npm start` — run the production server.
-- `npm run dev` — run with Nodemon.
-- `npm test` — execute unit tests.
-- `npm run check` — check JavaScript syntax.
+- `npm run dev` — run the TypeScript source in watch mode.
+- `npm run typecheck` — validate all static types without generating files.
+- `npm test` — execute TypeScript unit tests.
+- `npm run build` — compile production JavaScript into `dist/`.
+- `npm run check` — run type checking, tests and the production build.
+- `npm start` — run the compiled production server from `dist/`.
 
 ## Main endpoints
 
